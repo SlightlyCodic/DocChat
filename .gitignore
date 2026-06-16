@@ -1,0 +1,18 @@
+# Vector store & uploads (runtime data, never commit)
+backend/chroma_db/
+backend/uploads/
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+.venv/
+venv/
+*.egg-info/
+
+# macOS
+.DS_Store
+
+# Editor
+.idea/
+.vscode/
