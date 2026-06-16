@@ -13,6 +13,7 @@ venv/
 # macOS
 .DS_Store
 
-# Editor
+# Editor / tool config
 .idea/
 .vscode/
+.claude/
