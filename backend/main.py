@@ -2,14 +2,15 @@ import uuid
 import shutil
 from pathlib import Path
 
-from fastapi import FastAPI, UploadFile, File, HTTPException
+from fastapi import FastAPI, UploadFile, File, HTTPException, Header
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
 
 from langchain_community.document_loaders import PyPDFLoader
 from langchain_text_splitters import RecursiveCharacterTextSplitter
-from langchain_ollama import OllamaEmbeddings, ChatOllama
+from langchain_community.embeddings import FastEmbedEmbeddings
+from langchain_anthropic import ChatAnthropic
 from langchain_chroma import Chroma
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.output_parsers import StrOutputParser
@@ -18,12 +19,11 @@ from langchain_core.messages import HumanMessage, AIMessage
 UPLOAD_DIR = Path("uploads")
 UPLOAD_DIR.mkdir(exist_ok=True)
 CHROMA_DIR = "chroma_db"
-MODEL = "llama3.2"
+CLAUDE_MODEL = "claude-opus-4-8"
 FRONTEND_DIR = Path(__file__).parent.parent / "frontend"
 
-embeddings = OllamaEmbeddings(model=MODEL)
+embeddings = FastEmbedEmbeddings(model_name="BAAI/bge-small-en-v1.5")
 vectorstore = Chroma(persist_directory=CHROMA_DIR, embedding_function=embeddings)
-llm = ChatOllama(model=MODEL, temperature=0)
 
 # Per-session conversation history
 chat_histories: dict[str, list] = {}
@@ -143,10 +143,17 @@ async def delete_document(doc_id: str):
 
 
 @app.post("/chat", response_model=ChatResponse)
-async def chat(req: ChatRequest):
+async def chat(req: ChatRequest, x_api_key: str = Header(None)):
+    if not x_api_key:
+        raise HTTPException(
+            status_code=401,
+            detail="API key required. Enter your Anthropic API key in the app settings.",
+        )
+
     if not get_all_documents():
         raise HTTPException(status_code=400, detail="No documents uploaded. Upload a PDF first.")
 
+    llm = ChatAnthropic(model=CLAUDE_MODEL, api_key=x_api_key, temperature=0)
     history = chat_histories.setdefault(req.session_id, [])
     retriever = vectorstore.as_retriever(search_kwargs={"k": 4})
 
@@ -200,4 +207,4 @@ async def clear_chat(session_id: str):
 
 @app.get("/health")
 async def health():
-    return {"status": "ok", "model": MODEL}
+    return {"status": "ok", "model": CLAUDE_MODEL}

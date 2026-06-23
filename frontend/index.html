@@ -480,18 +480,116 @@
       from { transform: translateX(110%); opacity: 0; }
       to   { transform: translateX(0);   opacity: 1; }
     }
+
+    /* ── API Key Modal ── */
+    .modal-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.65);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 1000;
+      backdrop-filter: blur(4px);
+    }
+    .modal-overlay.hidden { display: none; }
+
+    .modal {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 28px 30px;
+      width: 420px;
+      max-width: calc(100vw - 32px);
+      box-shadow: 0 20px 60px rgba(0,0,0,0.5);
+    }
+    .modal-key-icon { font-size: 28px; margin-bottom: 12px; }
+    .modal h3 { font-size: 18px; font-weight: 600; margin-bottom: 6px; }
+    .modal-desc { font-size: 13px; color: var(--muted); line-height: 1.55; margin-bottom: 18px; }
+    .modal label {
+      font-size: 11px; font-weight: 600; color: var(--muted);
+      display: block; margin-bottom: 6px;
+      text-transform: uppercase; letter-spacing: 0.8px;
+    }
+    .modal-input-row { display: flex; gap: 8px; margin-bottom: 10px; }
+    #api-key-input {
+      flex: 1;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 9px 12px;
+      color: var(--text);
+      font-size: 13px;
+      font-family: 'SF Mono', 'Fira Code', monospace;
+      outline: none;
+      transition: border-color 0.2s;
+    }
+    #api-key-input:focus { border-color: var(--accent); }
+    #api-key-input::placeholder { color: var(--muted); font-family: -apple-system, sans-serif; }
+    .modal-save {
+      background: var(--accent);
+      border: none;
+      border-radius: 8px;
+      padding: 9px 18px;
+      color: white;
+      font-size: 14px;
+      font-weight: 500;
+      cursor: pointer;
+      white-space: nowrap;
+      flex-shrink: 0;
+      transition: background 0.2s;
+    }
+    .modal-save:hover { background: var(--accent-hover); }
+    .modal-footer { font-size: 11px; color: var(--muted); }
+    .modal-footer a { color: var(--accent); }
+
+    .settings-btn {
+      background: none;
+      border: 1px solid var(--border);
+      border-radius: 7px;
+      padding: 4px 10px;
+      color: var(--muted);
+      font-size: 12px;
+      cursor: pointer;
+      transition: border-color 0.2s, color 0.2s;
+    }
+    .settings-btn:hover { border-color: var(--accent); color: var(--accent); }
+    .navbar-right { display: flex; align-items: center; gap: 12px; }
   </style>
 </head>
 <body>
+
+<!-- API Key Modal -->
+<div class="modal-overlay hidden" id="api-modal">
+  <div class="modal">
+    <div class="modal-key-icon">🔑</div>
+    <h3>Anthropic API Key</h3>
+    <p class="modal-desc">
+      DocChat uses Claude to answer your questions. Enter your Anthropic API key to get started.
+      Your key is stored in your browser only and is never sent to our servers.
+    </p>
+    <label for="api-key-input">API Key</label>
+    <div class="modal-input-row">
+      <input type="password" id="api-key-input" placeholder="sk-ant-api03-…" autocomplete="off">
+      <button class="modal-save" onclick="saveApiKey()">Save</button>
+    </div>
+    <div class="modal-footer">
+      Don't have a key? <a href="https://console.anthropic.com" target="_blank" rel="noopener">Get one at console.anthropic.com</a>
+    </div>
+  </div>
+</div>
 
 <nav class="navbar">
   <div class="logo">
     <div class="logo-icon">📚</div>
     DocChat
   </div>
-  <div class="status">
-    <div class="status-dot pending" id="status-dot"></div>
-    <span id="status-text">Connecting…</span>
+  <div class="navbar-right">
+    <button class="settings-btn" onclick="openSettings()">⚙ API Key</button>
+    <div class="status">
+      <div class="status-dot pending" id="status-dot"></div>
+      <span id="status-text">Connecting…</span>
+    </div>
   </div>
 </nav>
 
@@ -526,7 +624,7 @@
     <div class="welcome" id="welcome">
       <div class="welcome-icon">📖</div>
       <h2>Chat with your documents</h2>
-      <p>Upload a PDF on the left, then ask any question<br>about its contents — powered by Llama 3.2 locally.</p>
+      <p>Upload a PDF on the left, then ask any question<br>about its contents — powered by Claude AI.</p>
       <div class="welcome-steps">
         <div class="step">
           <div class="step-num">1</div>
@@ -566,16 +664,59 @@
 
   // ── Init ──────────────────────────────────────────────
   (async function init() {
+    if (!getApiKey()) openSettings();
     await checkHealth();
     await loadDocs();
   })();
+
+  // ── API Key ───────────────────────────────────────────
+  function getApiKey() {
+    return localStorage.getItem('anthropic_api_key') || '';
+  }
+
+  function openSettings() {
+    document.getElementById('api-key-input').value = getApiKey();
+    document.getElementById('api-modal').classList.remove('hidden');
+    setTimeout(() => document.getElementById('api-key-input').focus(), 50);
+  }
+
+  function closeSettings() {
+    if (!getApiKey()) return;
+    document.getElementById('api-modal').classList.add('hidden');
+  }
+
+  function saveApiKey() {
+    const key = document.getElementById('api-key-input').value.trim();
+    if (!key) { toast('Please enter your API key', 'error'); return; }
+    if (!key.startsWith('sk-ant-')) {
+      toast('Invalid key — Anthropic keys start with sk-ant-', 'error');
+      return;
+    }
+    localStorage.setItem('anthropic_api_key', key);
+    document.getElementById('api-modal').classList.add('hidden');
+    toast('API key saved', 'success');
+    checkHealth();
+  }
+
+  document.getElementById('api-key-input').addEventListener('keydown', e => {
+    if (e.key === 'Enter') saveApiKey();
+  });
+  document.getElementById('api-modal').addEventListener('click', e => {
+    if (e.target === document.getElementById('api-modal')) closeSettings();
+  });
+  document.addEventListener('keydown', e => {
+    if (e.key === 'Escape') closeSettings();
+  });
 
   async function checkHealth() {
     try {
       const r = await fetch('/health');
       if (r.ok) {
-        const d = await r.json();
-        setStatus('online', `${d.model} ready`);
+        if (getApiKey()) {
+          setStatus('online', 'Claude ready');
+        } else {
+          setStatus('pending', 'Enter API key');
+        }
       } else {
         setStatus('offline', 'Server error');
       }
@@ -650,6 +791,8 @@
   }
 
   async function uploadFile(file) {
+    if (!getApiKey()) { openSettings(); return; }
+
     const title = document.getElementById('upload-title');
     const bar   = document.getElementById('upload-bar');
     zone.classList.add('uploading');
@@ -660,7 +803,11 @@
     form.append('file', file);
 
     try {
-      const res = await fetch('/upload', { method: 'POST', body: form });
+      const res = await fetch('/upload', {
+        method: 'POST',
+        headers: { 'X-API-Key': getApiKey() },
+        body: form,
+      });
       if (!res.ok) { const e = await res.json(); throw new Error(e.detail || 'Upload failed'); }
       const d = await res.json();
       toast(`✓ ${d.filename} — ${d.pages} pages, ${d.chunks} chunks`, 'success');
@@ -701,10 +848,21 @@
     addUserMsg(text);
     const typingEl = addTyping();
 
+    if (!getApiKey()) {
+      typingEl.remove();
+      busy = false;
+      sendBtn.disabled = false;
+      openSettings();
+      return;
+    }
+
     try {
       const res = await fetch('/chat', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          'X-API-Key': getApiKey(),
+        },
         body: JSON.stringify({ message: text, session_id: sessionId }),
       });
       if (!res.ok) { const e = await res.json(); throw new Error(e.detail || 'Error'); }

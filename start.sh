@@ -3,35 +3,16 @@ set -euo pipefail
 
 DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-echo "=== RAG Document Chatbot ==="
-echo ""
-
-# Check Ollama
-printf "Checking Ollama... "
-if ! curl -s http://localhost:11434/api/tags > /dev/null 2>&1; then
-  echo "NOT RUNNING"
-  echo ""
-  echo "  Start Ollama first:   ollama serve"
-  echo "  Then re-run:          ./start.sh"
-  exit 1
-fi
-echo "OK"
-
-# Ensure model exists
-printf "Checking llama3.2... "
-if ! ollama list | grep -q "llama3.2"; then
-  echo "not found, pulling..."
-  ollama pull llama3.2
-else
-  echo "OK"
-fi
-
+echo "=== RAG Document Chatbot (Claude-powered) ==="
 echo ""
 echo "Installing Python dependencies..."
 pip3 install -q -r "$DIR/backend/requirements.txt"
 echo "Done."
 echo ""
+echo "NOTE: FastEmbed will download the embedding model (~90 MB) on first run."
+echo ""
 echo "Server starting at http://localhost:8000"
+echo "Open the app, click 'API Key', and enter your Anthropic API key."
 echo "Press Ctrl+C to stop."
 echo ""
 
