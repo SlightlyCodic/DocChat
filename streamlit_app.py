@@ -7,7 +7,7 @@ from langchain_community.document_loaders import PyPDFLoader
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_community.embeddings import FastEmbedEmbeddings
 from langchain_anthropic import ChatAnthropic
-from langchain_chroma import Chroma
+from langchain_core.vectorstores import InMemoryVectorStore
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.output_parsers import StrOutputParser
 from langchain_core.messages import HumanMessage, AIMessage
@@ -26,6 +26,7 @@ def init_state():
     defaults = {
         "chat_history": [],
         "documents": {},       # doc_id -> filename
+        "doc_chunk_ids": {},   # doc_id -> list of chunk IDs in vectorstore
         "indexed_files": set(),
         "vectorstore": None,
     }
@@ -36,7 +37,7 @@ def init_state():
 
 def get_vectorstore():
     if st.session_state.vectorstore is None:
-        st.session_state.vectorstore = Chroma(embedding_function=load_embeddings())
+        st.session_state.vectorstore = InMemoryVectorStore(embedding=load_embeddings())
     return st.session_state.vectorstore
 
 
@@ -89,8 +90,9 @@ with st.sidebar:
                         for chunk in chunks:
                             chunk.metadata["doc_id"] = doc_id
                             chunk.metadata["filename"] = f.name
-                        get_vectorstore().add_documents(chunks)
+                        chunk_ids = get_vectorstore().add_documents(chunks)
                         st.session_state.documents[doc_id] = f.name
+                        st.session_state.doc_chunk_ids[doc_id] = chunk_ids
                         st.session_state.indexed_files.add(f.name)
                         st.success(f"✓ {f.name} — {len(pages)} pages, {len(chunks)} chunks")
                 except Exception as e:
@@ -104,7 +106,9 @@ with st.sidebar:
             col1, col2 = st.columns([5, 1])
             col1.markdown(f"📄 {filename}")
             if col2.button("×", key=f"del_{doc_id}", help="Remove"):
-                get_vectorstore()._collection.delete(where={"doc_id": doc_id})
+                chunk_ids = st.session_state.doc_chunk_ids.pop(doc_id, [])
+                if chunk_ids:
+                    get_vectorstore().delete(chunk_ids)
                 del st.session_state.documents[doc_id]
                 st.session_state.indexed_files.discard(filename)
                 st.rerun()
